@@ -20,6 +20,7 @@
 #define __SI46XX_H__
 
 #include <stdint.h>
+#include <unistd.h>
 
 #define msleep(x) usleep(x*1000)
 
@@ -158,23 +159,35 @@ struct dab_digrad_status_t{
 	uint16_t cu_level; // 0-470
 };
 
-struct fm_rds_data_t{
-	uint8_t sync;
-	uint16_t pi;
-	uint8_t pty;
-	char ps_name[9];
-	char radiotext[129];
-	uint16_t group_0a_flags;
-	uint32_t group_2a_flags;
-}fm_rds_data;
+typedef struct {
+        uint8_t sync;
+        uint16_t pi;
+        uint8_t pty;
+        char ps_name[9];
+        char radiotext[129];
+        uint16_t group_0a_flags;
+        uint32_t group_2a_flags;
+}fm_rds_data_type;
 
-struct dab_service_list_t{
+extern fm_rds_data_type fm_rds_data;
+
+typedef struct {
 	uint16_t list_size;
 	uint16_t version;
 	uint8_t num_services;
 	struct dab_service_t services[MAX_SERVICES];
-}dab_service_list;
+}dab_service_list_type;
 
+extern dab_service_list_type dab_service_list;
+
+void hexDump(char *desc, void* , int);
+int si46xx_reply(const char *);
+int spi(uint8_t *, int );
+void spi_init(void);
+void si46xx_powerup(void);
+void si46xx_hostload(char*);
+void si46xx_boot(void);
+void si46xx_get_partinfo(void);
 void si46xx_reset(void);
 void si46xx_init_dab(void);
 void si46xx_init_fm(void);
