@@ -21,7 +21,8 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <getopt.h>
-
+#include <linux/spi/spidev.h>
+#include <string.h>
 #include "si46xx.h"
 #include "version.h"
 
