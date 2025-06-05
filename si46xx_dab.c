@@ -61,7 +61,7 @@ void si46xx_dab_digrad_status_print(struct dab_digrad_status_t *status) {
 	printf("ANTCAP      : %d\r\n", status->read_ant_cap);
 }
 
-si46xx_swap_services(uint8_t first, uint8_t second) {
+void si46xx_swap_services(uint8_t first, uint8_t second) {
 	struct dab_service_t tmp;
 
 	memcpy(&tmp, &dab_service_list.services[first], sizeof(tmp));
@@ -69,7 +69,7 @@ si46xx_swap_services(uint8_t first, uint8_t second) {
 	memcpy(&dab_service_list.services[second], &tmp, sizeof(tmp));
 }
 
-si46xx_sort_service_list(void) {
+void si46xx_sort_service_list(void) {
 	uint8_t i, p, swapped;
 
 	swapped = 0;
@@ -101,7 +101,7 @@ void si46xx_dab_print_service_list() {
 		service_id = dab_service_list.services[i].service_id;
 		component_id = dab_service_list.services[i].component_id[0];
 		service_label = dab_service_list.services[i].service_label;
-		printf(" %02u |   %8x | %s | ", i, service_id, service_label, component_id);
+		printf(" %02u |   %8x | %s | %i", i, service_id, service_label, component_id);
 		for (p = 0; p < dab_service_list.services[i].num_components; p++) {
 			printf("%d ", dab_service_list.services[i].component_id[p]);
 		}
@@ -289,11 +289,11 @@ void si46xx_dab_get_ensemble_info() {
 	data[0] = SI46XX_DAB_GET_ENSEMBLE_INFO;
 	//data[1] = (1<<4) | (1<<0); // force_wb, low side injection
 	data[1] = 0;
-	spi(data, 2);
+	spi((uint8_t*)data, 2);
 
 	while (timeout--) {
 		data[0] = 0;
-		spi(data, 23);
+		spi((uint8_t*)data, 23);
 		if (data[1] & 0x80) {
 			hexDump("DAB_GET_ENSEMBLE_INFO", data, 23);
 			memcpy(label, data + 7, 16);
@@ -312,11 +312,11 @@ void si46xx_dab_get_audio_info(void) {
 
 	data[0] = SI46XX_DAB_GET_AUDIO_INFO;
 	data[1] = 0;
-	spi(data, 2);
+	spi((uint8_t*)data, 2);
 
 	while (timeout--) {
 		data[0] = 0;
-		spi(data, 10);
+		spi((uint8_t*)data, 10);
 		if (data[1] & 0x80) {
 			hexDump("DAB_GET_AUDIO_INFO", data, 10);
 			printf("Bitrate    : %d kbps\r\n", data[5] + (data[6] << 8));
@@ -346,7 +346,7 @@ void si46xx_dab_get_subchannel_info(uint32_t num) {
 	uint8_t data[13];
 	uint32_t service_id = dab_service_list.services[num].service_id;
 	uint16_t component_id = dab_service_list.services[num].component_id[0];
-	char *service_label = dab_service_list.services[num].service_label;
+	//char *service_label = dab_service_list.services[num].service_label;
 	uint8_t timeout = 10;
 
 	data[0] = SI46XX_DAB_GET_SUBCHAN_INFO;
@@ -361,7 +361,7 @@ void si46xx_dab_get_subchannel_info(uint32_t num) {
 	data[9] = (component_id >> 8) & 0xFF;
 	data[10] = (component_id >> 16) & 0xFF;
 	data[11] = (component_id >> 24) & 0xFF;
-	spi(data, 12);
+	spi((uint8_t*)data, 12);
 
 	while (timeout--) {
 		data[0] = 0;
