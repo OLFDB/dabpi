@@ -36,6 +36,9 @@
 #define SPI_BITS		8
 #define SPI_DELAY		0
 
+fm_rds_data_type fm_rds_data;
+dab_service_list_type dab_service_list;
+
 int spi_fd;
 
 void spi_init() {
@@ -95,7 +98,7 @@ int si46xx_reply(const char *log) {
 		data[0] = 0;
 		spi(data, 5);
 		if (data[1] & 0x80) { // CTS ?
-			hexDump(log, data, 5);
+			hexDump((char*)log, data, 5);
 			return 1;
 		}
 		msleep(10);
@@ -113,7 +116,7 @@ void si46xx_boot() {
 	si46xx_reply("BOOT");
 }
 
-void si46xx_hostload(const char *filename) {
+void si46xx_hostload(char *filename) {
 	FILE *fp;
 	size_t result;
 
@@ -129,7 +132,7 @@ void si46xx_hostload(const char *filename) {
 		return;
 	}
 
-	int loop = 0;
+	//int loop = 0;
 	uint8_t data[4092 + 4];
 	while (1) {
 		data[0] = SI46XX_HOST_LOAD;
