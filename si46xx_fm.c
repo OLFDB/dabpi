@@ -23,6 +23,8 @@
 
 #include "si46xx.h"
 
+extern fm_rds_data_type fm_rds_data;
+
 void si46xx_init_fm(void) {
 	si46xx_reset();
 	si46xx_powerup();
