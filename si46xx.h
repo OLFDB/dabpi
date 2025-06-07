@@ -47,6 +47,7 @@
 #define SI46XX_DAB_SET_FREQ_LIST 0xB8
 #define SI46XX_DAB_GET_DIGITAL_SERVICE_LIST 0x80
 #define SI46XX_DAB_START_DIGITAL_SERVICE 0x81
+#define SI46XX_DAB_GET_DIGITAL_SERVICE_DATA 0x84
 #define SI46XX_DAB_GET_ENSEMBLE_INFO 0xB4
 #define SI46XX_DAB_GET_AUDIO_INFO 0xBD
 #define SI46XX_DAB_GET_SUBCHAN_INFO 0xBE
@@ -180,6 +181,23 @@ typedef struct {
 
 extern dab_service_list_type dab_service_list;
 
+
+struct dab_get_service_data_t {
+uint8_t dsrvovlint; //RESP4
+uint8_t dsrvpcktint;
+uint8_t buff_count; //RESP5
+uint8_t srv_state; //RESP6
+uint8_t data_src; // RESP7
+uint8_t dscty;
+uint32_t service_id; //RESP8, 9, 10, 11 	
+uint32_t comp_id; //RESP12,13,14,15
+uint16_t uatype; //RESP16, 17
+uint16_t byte_cnt;//RESP18, 19
+uint16_t seg_num; //RESP20, 21
+uint16_t num_segs; //RESP22,23
+uint8_t* payload; //RESP24, ... 
+};
+
 void hexDump(char *desc, void* , int);
 int si46xx_reply(const char *);
 int spi(uint8_t *, int );
@@ -213,6 +231,6 @@ void si46xx_dab_get_audio_info(void);
 void si46xx_dab_get_subchannel_info(uint32_t num);
 void si46xx_dab_scan(void);
 int si46xx_dab_get_digital_service_list(void);
-
+void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *data);
 #endif
 

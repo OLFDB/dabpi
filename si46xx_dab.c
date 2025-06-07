@@ -281,6 +281,44 @@ void si46xx_dab_digrad_status(struct dab_digrad_status_t *status) {
 	printf("timeout on DAB_DIGRAD_STATUS\r\n");
 }
 
+void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *srvdata) {
+	uint8_t data[26];
+	uint8_t timeout = 10;
+
+	while (timeout--) {
+		data[0] = SI46XX_DAB_GET_DIGITAL_SERVICE_DATA;
+		data[1] = (1 << 4) | 1; // set status_only and ack;
+		spi(data, 2);
+		msleep(10);
+		data[0] = 0;
+		spi(data, 26);
+		if (data[1] & 0x81) {
+			hexDump("DAB_GET_DIGITAL_SERVICE_DATA", data, 26);
+			srvdata->dsrvovlint = (data[6] & 0x02) ? 1 : 0;
+			srvdata->dsrvpcktint = data[6] & 0x01;
+			srvdata->buff_count = data[7];
+			srvdata->srv_state = data[8];
+			srvdata->data_src = (data[9] & 0xA0) >> 6;
+			srvdata->dscty = data[9] & 0x3F;
+			srvdata->service_id = data[10] | data[11] << 8 | data[12] << 16 | data[13] << 24;
+		 	srvdata->comp_id = data[14] | data[15] << 8 | data[16] << 16 | data[17] << 24;
+			srvdata->uatype = data[18] | data[19] << 8;
+			srvdata->byte_cnt = data[20] | data[21] << 8;
+			srvdata->seg_num = data[22] | data[23] << 8;
+			srvdata->num_segs = data[24] | data[25] << 8;
+			uint8_t* pl= (uint8_t *)malloc(sizeof(uint8_t) * srvdata->byte_cnt);
+			uint32_t i; 	
+			for(i=0;i<srvdata->byte_cnt;i++){
+				pl[i]=data[i+26];
+			}
+			srvdata->payload=pl;
+			return;
+		}
+		msleep(10);
+	}
+	printf("timeout on DAB_GET_DIGITAL_SERVICE_DATA\r\n");
+}
+
 void si46xx_dab_get_ensemble_info() {
 	char data[23];
 	char label[17];

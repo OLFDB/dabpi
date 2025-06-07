@@ -176,6 +176,7 @@ void show_help(char *prog_name) {
 	printf("  -m             fm rds status\r\n");
 	printf("  -n             dab get audio info\r\n");
 	printf("  -o service     dab get subchannel info\r\n");
+	printf("  -p             dab get service data\r\n");
 	printf("  -s             get sys state (fm,dab,am...)\r\n");
 	printf("  -h             this help\n");
 }
@@ -231,7 +232,7 @@ int main(int argc, char **argv) {
 
 	spi_init();
 
-	while ((c = getopt(argc, argv, "abc:def:ghi:j:k:l:mno:s")) != -1) {
+	while ((c = getopt(argc, argv, "abc:def:ghi:j:k:l:mnpo:s")) != -1) {
 		switch (c) {
 		case 'a':
 			si46xx_init_dab();
@@ -293,6 +294,10 @@ int main(int argc, char **argv) {
 			si46xx_dab_get_digital_service_list();
 			si46xx_dab_print_service_list();
 			si46xx_dab_get_subchannel_info(tmp);
+			break;
+		case 'p':
+			struct dab_get_service_data_t data;
+			si46xx_dab_get_digital_service_data(&data);
 			break;
 		case 's':
 			si46xx_get_sys_state();
