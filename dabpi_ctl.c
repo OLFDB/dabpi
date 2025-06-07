@@ -298,6 +298,8 @@ int main(int argc, char **argv) {
 		case 'p':
 			struct dab_get_service_data_t data;
 			si46xx_dab_get_digital_service_data(&data);
+			if(data.byte_cnt>0)
+				hexDump("DAB_GET_DIGITAL_SERVICE_DATA", data.payload, data.byte_cnt);
 			break;
 		case 's':
 			si46xx_get_sys_state();
