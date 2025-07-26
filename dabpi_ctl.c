@@ -25,10 +25,11 @@
 #include <string.h>
 #include "si46xx.h"
 #include "version.h"
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <wiringPi.h>
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
+
+uint8_t debug_enabled;
 
 uint32_t frequency_list_nrw[] = {
     CHAN_5C,
@@ -52,7 +53,10 @@ uint32_t frequency_list_bw[] = {
     CHAN_11B
 };
 uint32_t frequency_list_bb[] = {
-    CHAN_5C,
+	CHAN_5C,
+	CHAN_5D,
+    CHAN_10B,
+	CHAN_12D,
     CHAN_7B,
     CHAN_7D
 };
@@ -126,26 +130,6 @@ uint32_t frequency_list_ch[] = {
     CHAN_8B
 };
 
-//static struct global_args_t{
-//	int dab;
-//	int fm;
-//	int dab_start_service;
-//	int frequency;
-//	int dab_service_list;
-//} global_args;
-//
-//static struct option long_options[]=
-//{
-//	{"dab_start_service", required_argument, &global_args.dab_start_service,0},
-//	{"frequency", required_argument,&global_args.frequency,0},
-//	{"status", no_argument,0,'s'},
-//	{"dab", no_argument,&global_args.dab, 'd'},
-//	{"fm", no_argument,&global_args.fm, 'f'},
-//	{"dab_service_list", no_argument, &global_args.dab_service_list,0},
-//	{0,0,0,0}
-//};
-//
-
 void show_help(char *prog_name) {
     printf("usage: %s [-a|-b]\n", prog_name);
     printf("  -a             init DAB mode\n");
@@ -180,8 +164,11 @@ void show_help(char *prog_name) {
     printf("  -n             dab get audio info\r\n");
     printf("  -o service     dab get subchannel info\r\n");
     printf("  -p             dab get service data\r\n");
+    printf("  -q             query component info\r\n");
+    printf("  -r debug       enable debug (0/1)");
     printf("  -s             get sys state (fm,dab,am...)\r\n");
-    printf("  -h             this help\n");
+    printf("  -t             set RSTB to low so it's safe to poweroff the pi\r\n");
+    printf("  -h             this help\r\n");
 }
 
 void load_regional_channel_list(uint8_t tmp) {
@@ -224,12 +211,7 @@ void load_regional_channel_list(uint8_t tmp) {
     }
 }
 
-void writeDataToFiFo(uint8_t* data, uint16_t len) {
-    mkfifo("dabdata", 0666);
-    int fd=open("dabdata", O_WRONLY);
-    write(fd, data, len);
-    close(fd);
-}
+
 
 int main(int argc, char **argv) {
 
@@ -237,12 +219,13 @@ int main(int argc, char **argv) {
     int frequency;
     int tmp;
     struct dab_digrad_status_t dab_digrad_status;
+    debug_enabled = 0;
 
     printf("dabpi_ctl version %s\r\n", GIT_VERSION);
 
     spi_init();
 
-    while ((c = getopt(argc, argv, "abc:def:ghi:j:k:l:mnpo:s")) != -1) {
+    while ((c = getopt(argc, argv, "abc:def:ghi:j:k:l:mnpo:qr:st")) != -1) {
         switch (c) {
         case 'a':
             si46xx_init_dab();
@@ -308,17 +291,27 @@ int main(int argc, char **argv) {
         case 'p':
             struct dab_get_service_data_t data;
             while(1) {
-                si46xx_dab_get_digital_service_data(&data);
-                if(data.byte_cnt>0) {
-                    hexDump("DAB_GET_DIGITAL_SERVICE_DATA", data.payload, data.byte_cnt);
-                    writeDataToFiFo(data.payload, data.byte_cnt);
-                } else {
-                    writeDataToFiFo((uint8_t*)"TEST", 4);
-                }
+            	memset(&data,0,sizeof(data));
+                si46xx_dab_get_digital_service_data(&data, 0);
             }
             break;
+        case 'q':
+            si46xx_dab_get_digital_service_list();
+            si46xx_dab_print_service_list();
+            si46xx_dab_get_component_info();
+            break;
+        case 'r':
+        	tmp = atoi(optarg);
+			debug_enabled = tmp;
+        	break;
         case 's':
             si46xx_get_sys_state();
+            break;
+        case 't':
+        	wiringPiSetup();
+        	pinMode(SI46XX_RESET, OUTPUT);
+            digitalWrite(SI46XX_RESET, 0);
+            msleep(10);
             break;
         default:
             show_help(argv[0]);
