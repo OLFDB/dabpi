@@ -1,18 +1,18 @@
-/* 
+/*
  * dabpi_ctl - raspberry pi fm/fmhd/dab receiver board control interface
  * Copyright (C) 2014  Bjoern Biesenbach <bjoern@bjoern-b.de>
  * Copyright (C) 2016  Heiko Jehmlich <hje@jecons.de>
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -23,6 +23,9 @@
 #include <unistd.h>
 
 #define msleep(x) usleep(x*1000)
+
+#define SI46XX_RESET 	4
+#define DSRVINT_MASK = 0x10;
 
 #define SI46XX_RD_REPLY 0x00
 #define SI46XX_POWER_UP 0x01
@@ -51,6 +54,7 @@
 #define SI46XX_DAB_GET_ENSEMBLE_INFO 0xB4
 #define SI46XX_DAB_GET_AUDIO_INFO 0xBD
 #define SI46XX_DAB_GET_SUBCHAN_INFO 0xBE
+#define SI46XX_DAB_COMPONENT_INFO 0xBB
 
 #define SI46XX_FM_INT_CTL_ENABLE 0x0000
 #define SI46XX_FM_INT_CTL_REPEAT 0x0001
@@ -68,7 +72,7 @@
 #define SI46XX_DAB_TUNE_FE_CFG 0x1712
 #define SI46XX_DAB_TUNE_FE_VARM 0x1710
 #define SI46XX_DAB_TUNE_FE_VARB 0x1711
-#define SI46XX_DAB_CTRL_DAB_MUTE_ENABLE 0xB400
+#define SI46XX_DAB_CTRL_DAB_MUTE_ENABLE 0xB500
 #define SI46XX_DAB_CTRL_DAB_MUTE_SIGNAL_LEVEL_THRESHOLD 0xB501
 #define SI46XX_DAB_CTRL_DAB_MUTE_SIGLOW_THRESHOLD 0xB505
 #define SI46XX_DAB_CTRL_DAB_ACF_ENABLE 0xB500
@@ -122,83 +126,107 @@
 #define CHAN_13E 237488
 #define CHAN_13F 239200
 
-#define MAX_SERVICES 50
+#define MAX_SERVICES 100
 #define MAX_COMPONENTS 15
 
-struct dab_service_t{
-	uint32_t service_id;
-	uint8_t service_info1;
-	uint8_t service_info2;
-	uint8_t service_info3;
-	char service_label[17];
-	uint8_t num_components;
-	// only one component by now
-	uint16_t component_id[MAX_COMPONENTS];
-	uint8_t component_info[MAX_COMPONENTS];
-	uint8_t component_valid_flags[MAX_COMPONENTS];
+extern uint32_t tunedservice;
+
+struct dab_service_t {
+    uint32_t service_id;
+    uint8_t service_info1;
+    uint8_t service_info2;
+    uint8_t service_info3;
+    char service_label[17];
+    uint8_t num_components;
+    uint32_t component_id[MAX_COMPONENTS];
+    uint8_t component_info[MAX_COMPONENTS];
+    uint8_t component_valid_flags[MAX_COMPONENTS];
+    uint8_t tmid[MAX_COMPONENTS];
+    uint8_t dgflag[MAX_COMPONENTS];
+    uint16_t scid[MAX_COMPONENTS];
+    uint8_t subchid[MAX_COMPONENTS];
+    uint8_t fidcid[MAX_COMPONENTS];
 };
 
-struct dab_digrad_status_t{
-	uint8_t hard_mute_int;
-	uint8_t fic_error_int;
-	uint8_t acq_int;
-	uint8_t rssi_h_int;
-	uint8_t rssi_l_int;
-	uint8_t hardmute;
-	uint8_t fic_error;
-	uint8_t acq;
-	uint8_t valid;
-	int8_t rssi; // -128-63
-	int8_t snr; // 0-20
-	uint8_t fic_quality; // 0-100
-	uint8_t cnr; // 0-54
-	uint16_t fib_error_count;
-	uint32_t frequency;
-	uint8_t tuned_index;
-	uint8_t fft_offset;
-	uint16_t read_ant_cap;
-	uint16_t cu_level; // 0-470
+struct dab_digrad_status_t {
+    uint8_t hard_mute_int;
+    uint8_t fic_error_int;
+    uint8_t acq_int;
+    uint8_t rssi_h_int;
+    uint8_t rssi_l_int;
+    uint8_t hardmute;
+    uint8_t fic_error;
+    uint8_t acq;
+    uint8_t valid;
+    int8_t rssi; // -128-63
+    int8_t snr; // 0-20
+    uint8_t fic_quality; // 0-100
+    uint8_t cnr; // 0-54
+    uint16_t fib_error_count;
+    uint32_t frequency;
+    uint8_t tuned_index;
+    uint8_t fft_offset;
+    uint16_t read_ant_cap;
+    uint16_t cu_level; // 0-470
 };
 
 typedef struct {
-        uint8_t sync;
-        uint16_t pi;
-        uint8_t pty;
-        char ps_name[9];
-        char radiotext[129];
-        uint16_t group_0a_flags;
-        uint32_t group_2a_flags;
-}fm_rds_data_type;
+    uint8_t sync;
+    uint16_t pi;
+    uint8_t pty;
+    char ps_name[9];
+    char radiotext[129];
+    uint16_t group_0a_flags;
+    uint32_t group_2a_flags;
+} fm_rds_data_type;
 
 extern fm_rds_data_type fm_rds_data;
 
 typedef struct {
-	uint16_t list_size;
-	uint16_t version;
-	uint8_t num_services;
-	struct dab_service_t services[MAX_SERVICES];
-}dab_service_list_type;
+    uint16_t list_size;
+    uint16_t version;
+    uint8_t num_services;
+    struct dab_service_t services[MAX_SERVICES];
+} dab_service_list_type;
 
 extern dab_service_list_type dab_service_list;
 
 
 struct dab_get_service_data_t {
-uint8_t dsrvovlint; //RESP4
-uint8_t dsrvpcktint;
-uint8_t buff_count; //RESP5
-uint8_t srv_state; //RESP6
-uint8_t data_src; // RESP7
-uint8_t dscty;
-uint32_t service_id; //RESP8, 9, 10, 11 	
-uint32_t comp_id; //RESP12,13,14,15
-uint16_t uatype; //RESP16, 17
-uint16_t byte_cnt;//RESP18, 19
-uint16_t seg_num; //RESP20, 21
-uint16_t num_segs; //RESP22,23
-uint8_t* payload; //RESP24, ... 
+    uint8_t dsrvovlint; //RESP4
+    uint8_t dsrvpcktint;
+    uint8_t buff_count; //RESP5
+    uint8_t srv_state; //RESP6
+    uint8_t data_src; // RESP7
+    uint8_t dscty;
+    uint32_t service_id; //RESP8, 9, 10, 11
+    uint32_t comp_id; //RESP12,13,14,15
+    uint16_t uatype; //RESP16, 17
+    uint16_t byte_cnt;//RESP18, 19
+    uint16_t seg_num; //RESP20, 21
+    uint16_t num_segs; //RESP22,23
+    uint8_t* payload; //RESP24, ...
 };
 
-void hexDump(char *desc, void* , int);
+struct user_app_info_t {
+	uint16_t uatype;
+	uint8_t uadatalen;
+	uint8_t data;
+	uint8_t data1;
+};
+
+struct dab_get_component_info_t {
+	uint8_t SCIDS;
+	uint8_t lang;
+	uint8_t charsetid;
+	unsigned char comp_lbl[16];
+	uint16_t char_abbrev;
+	uint8_t numua;
+	uint8_t lenua;
+	struct user_app_info_t uainfo;
+};
+
+void hexDump(char *desc, void*, int);
 int si46xx_reply(const char *);
 int spi(uint8_t *, int );
 void spi_init(void);
@@ -232,5 +260,7 @@ void si46xx_dab_get_subchannel_info(uint32_t num);
 void si46xx_dab_scan(void);
 int si46xx_dab_get_digital_service_list(void);
 void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *data);
+void si46xx_dab_get_component_info(uint16_t compid);
+void si46xx_print_response(uint8_t *data);
 #endif
 
