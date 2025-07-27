@@ -292,7 +292,7 @@ int main(int argc, char **argv) {
             struct dab_get_service_data_t data;
             while(1) {
             	memset(&data,0,sizeof(data));
-                si46xx_dab_get_digital_service_data(&data, 0);
+                si46xx_dab_get_digital_service_data(&data);
             }
             break;
         case 'q':
