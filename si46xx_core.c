@@ -25,11 +25,10 @@
 #include <fcntl.h>				// Needed for SPI port
 #include <sys/ioctl.h>			// Needed for SPI port
 #include <linux/spi/spidev.h>	// Needed for SPI port
+#include <linux/spi/spi.h>
 #include <wiringPi.h>			// Needed for GPIO reset
 
 #include "si46xx.h"
-
-#define SI46XX_RESET 	4
 
 #define SPI_DEVICE		"/dev/spidev0.0"
 #define SPI_SPEED		10000000
@@ -75,6 +74,7 @@ void spi_init() {
 
 int spi(uint8_t *data, int len) {
 	struct spi_ioc_transfer spi;
+	//printf("SPI Command: 0x%0x\r\n", data[0]);
 	memset(&spi, 0, sizeof(spi));
 	spi.tx_buf = (unsigned long) data;
 	spi.rx_buf = (unsigned long) data;
@@ -90,6 +90,28 @@ int spi(uint8_t *data, int len) {
 	return ret;
 }
 
+void si46xx_print_response(uint8_t *data) {
+	printf("CTS:\t\t%i\tClear to send if 1\n", (data[1] & 0x80) >> 7);
+	printf("ERR_CMD:\t%i\tCommand failed if 1\n", (data[1] & 0x40) >> 6);
+	printf("DACQINT:\t%i\tFMHD only\n", (data[1] & 0x20) >> 5);
+	printf("DSRVINT:\t%i\tData only\n", (data[1] & 0x10) >> 4);
+//	printf("RSQINT:\t\t%i\tFM only\n", (data[1] & 0x08) >> 3);
+//	printf("RDSINT:\t\t%i\tFM only\n", (data[1] & 0x04) >> 2);
+//	printf("ACFINT:\t\t%i\tFM only\n", (data[1] & 0x02) >> 1);
+	printf("STCINT:\t\t%i\tTune complete\n", (data[1] & 0x01));
+	printf("DEVNTINT:\t%i\tFMHD only Evt occured if 1\n", (data[2] & 0x20) >> 5);
+	printf("DACFINT:\t%i\tFMHD only ACF status changed if 1\n", (data[2] & 0x01));
+	printf("PUP_STATE:\t0x%x\tPowerup State 0=reset no powerup cmd, 1=reserved, 2=Bootloader, 4=App running\n", (data[4] & 0xC0) >> 6);
+	printf("RFFE_ERR:\t%i\tRF frontend error\n", (data[4] & 0x20) >> 5);
+	printf("DSPERR:\t\t%i\tDSP frame overrun\n", (data[4] & 0x10) >> 4);
+	printf("REPOFERR:\t%i\tRead error, SPI clock rate too high\n", (data[4] & 0x08) >> 3);
+	printf("CMDOFERR:\t%i\tWrite error, SPI clock too fast\n", (data[4] & 0x04) >> 2);
+	printf("ARBERR:\t\t%i\tarbiter error\n", (data[4] & 0x02) >> 1);
+	printf("ERRNR:\t\t%i\tnon-recoverable error\n", (data[4] & 0x01));
+	printf("DSRVOVLINT:\t%i\tDSRV overflow, reading too slow\n", (data[5] & 0x02)>>1);
+	printf("DSRVPCKTINT:\t%i\tDSRV data ready\n", (data[5] & 0x01));
+}
+
 int si46xx_reply(const char *log) {
 	uint8_t data[5];
 	uint8_t timeout = 10;
@@ -98,7 +120,7 @@ int si46xx_reply(const char *log) {
 		data[0] = 0;
 		spi(data, 5);
 		if (data[1] & 0x80) { // CTS ?
-			hexDump((char*)log, data, 5);
+			hexDump((char*) log, data, 5);
 			return 1;
 		}
 		msleep(10);
@@ -227,6 +249,7 @@ void si46xx_get_sys_state() {
 }
 
 void si46xx_set_property(uint16_t name, uint16_t value) {
+	printf("SET_PROPERTY: %x, VALUE: 0x%x\r\n", name, value);
 	uint8_t data[6];
 	data[0] = SI46XX_SET_PROPERTY;
 	data[1] = 0;
@@ -236,6 +259,7 @@ void si46xx_set_property(uint16_t name, uint16_t value) {
 	data[5] = (value >> 8) & 0xFF;
 	spi(data, 6);
 	si46xx_reply("SET_PROPERTY");
+	msleep(10);
 }
 
 void si46xx_reset() {
