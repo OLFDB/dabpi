@@ -298,7 +298,15 @@ int main(int argc, char **argv) {
         case 'q':
             si46xx_dab_get_digital_service_list();
             si46xx_dab_print_service_list();
-            si46xx_dab_get_component_info();
+            int i =0;
+            for(i = 0; i<dab_service_list.num_services;i++) {
+            	if(dab_service_list.services[i].service_id==tunedservice) {
+            		for(int n=0;n< dab_service_list.services[i].num_components;n++) {
+            			si46xx_dab_get_component_info(dab_service_list.services[i].component_id[n]);
+            		}
+            		break;
+            	}
+            }
             break;
         case 'r':
         	tmp = atoi(optarg);
