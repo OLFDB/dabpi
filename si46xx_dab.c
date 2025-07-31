@@ -260,7 +260,7 @@ void si46xx_dab_start_digital_service_num(uint32_t num) {
 	uint16_t component_id;
 	char *service_label = dab_service_list.services[num].service_label;
 	tunedservice = service_id;
-	si46xx_set_property(0xB400, 0xFFFF); // TPEG only //all data services
+	si46xx_set_property(0xB400, 0xBFFF); // all data services
 	si46xx_set_property(0x8100, 0x03); // DSRVINT for DSRVOVFLINT and DSRVPCKTINT
 
 	for (int i = 0; i < dab_service_list.services[num].num_components; i++) {
@@ -385,10 +385,8 @@ void writeDataToFiFo(uint8_t *data, uint16_t len) {
 void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *srvdata) {
 
 	uint8_t data[25]; // Polling Buffer
-
-	uint8_t appdata[1024 + 25]; // Read Buffer
-	memset(appdata, 0, 1024 + 25); // Clear Read Buffer
-
+	uint8_t appdata[2048 + 25]; // Read Buffer
+	memset(appdata, 0, 2048 + 25); // Clear Read Buffer
 	uint8_t timeout = 10;
 
 	while (timeout--) {
@@ -412,13 +410,12 @@ void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *srvdata)
 			}
 		}
 
-		int ack = 0; // On startup we have DSRVOVFLINT set maybe. We use this flag to read data with ACK to clear it
 		if (data[1] & 0x10) { //DSRVINT
 
 			do { // after startup we need to ACK if DSRVOVFLINT is set
 				memset(data, 0, 25);
 				data[0] = SI46XX_DAB_GET_DIGITAL_SERVICE_DATA;
-				data[1] = 0x10 + ack; // ACK if first read had DSRVOVFLINT
+				data[1] = 0x11; // + ack; // ACK if first read had DSRVOVFLINT
 				spi(data, 25);
 				data[0] = 0;
 				msleep(10);
@@ -438,38 +435,13 @@ void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *srvdata)
 					msleep(10);
 					return;
 				}
-				if ((data[5] & 0x2) > 0)
-					ack = 1; // DSRVOVFLINT, need to ACK in next iteration
 			} while ((data[5] & 0x2) > 0); // Until DSRVOVFLINT is cleared
 
 			while (1) { // Read until all buffers have been processed
-				memset(data, 0, 25);
-				data[0] = SI46XX_DAB_GET_DIGITAL_SERVICE_DATA;
-				data[1] = 0x10; // Status only
-				spi(data, 25);
 				srvdata->byte_cnt = data[19] | data[20] << 8;
-				memset(appdata, 0, 25);
+				memset(appdata, 0, 2048 + 25);
 				appdata[0] = SI46XX_RD_REPLY;
-				spi(appdata, 25);
-				if ((appdata[1] & 0x40)) {
-					if (appdata[5] != 0x03) { // Exclude not available error from being reported
-						printf("=====================================================ErrorCode appdata header: %i\r\n", appdata[5]);
-						hexDump("DAB_GET_DIGITAL_SERVICE_DATA data", data, sizeof(data) / sizeof(uint8_t));
-						si46xx_print_response(data);
-						printf("==================================================================\r\n");
-						msleep(10);
-					}
-					return;
-				}
-
-				memset(data, 0, 25);
-				data[0] = SI46XX_DAB_GET_DIGITAL_SERVICE_DATA;
-				data[1] = 0x01; // Get Data and ACK
-				spi(data, 25);
-				srvdata->byte_cnt = data[19] | data[20] << 8;
-				memset(appdata, 0, 25);
-				appdata[0] = SI46XX_RD_REPLY;
-				spi(appdata, 1024 + 25);
+				spi(appdata, 2048 + 25);
 				if ((appdata[1] & 0x40)) {
 					if (appdata[5] == 0x03) {
 						memset(data, 0, 25);
@@ -498,7 +470,7 @@ void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *srvdata)
 				srvdata->seg_num = appdata[21] | appdata[22] << 8;
 				srvdata->num_segs = appdata[23] | appdata[24] << 8;
 
-				if (debug_enabled) {
+				if (debug_enabled>0) {
 					printf("\ndsrvpcktint: \t0x%x\n", srvdata->dsrvpcktint);
 					printf("dsrvovflint: \t0x%x\n", srvdata->dsrvovlint);
 					printf("buff_count: \t0x%x\n", srvdata->buff_count);
@@ -522,27 +494,9 @@ void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *srvdata)
 					printf("seg_num: \t0x%x\n", srvdata->seg_num);
 					printf("num_segs: \t0x%x\n\n", srvdata->num_segs);
 
-//				int pl = (appdata[25] & 0xC0) >> 6; // (packet_length + 1) *24
-//				pl+=1;
-//				pl=pl*24;
-//				int ci = (appdata[25] & 0x30) >> 4; // continuity_index;
-//				int ff = (appdata[25] & 0x08) >> 3;
-//				int lf = (appdata[25] & 0x04) >> 2;
-//				int pa = (appdata[25] & 0x03) << 8;
-//				pa = pa | (appdata[26] & 0xFF);
-//				int cf = (appdata[27] & 0x80)>>7;
-//				int udl = (appdata[27] & 0x7F);
-//
-//				printf("\npacket_length=%d", pl);
-//				printf("\ncontinuity_index=%d", ci);
-//				printf("\nfirst_flag=%d", ff);
-//				printf("\nlast_flag=%d", lf);
-//				printf("\npacket_address=%d", pa);
-//				printf("\ncommand_flag=%d", cf);
-//				printf("\nuseful_data_length=%d\n\n", udl);
-
-//
-					hexDump("DAB_GET_DIGITAL_SERVICE_DATA data", appdata, srvdata->byte_cnt + 25);
+					if (debug_enabled>1) {
+						hexDump("DAB_GET_DIGITAL_SERVICE_DATA data", appdata, srvdata->byte_cnt + 25);
+					}
 				}
 
 				if (srvdata->byte_cnt) {
@@ -570,11 +524,7 @@ void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *srvdata)
 					// Get next package
 					memset(data, 0, 25);
 					data[0] = SI46XX_DAB_GET_DIGITAL_SERVICE_DATA;
-					if (srvdata->buff_count == 1) {
-						data[1] = 1; // Get all, ACK
-					} else {
-						data[1] = 0; // Get all, no ACK
-					}
+					data[1] = 1; // Get all, no ACK
 					spi(data, 25);
 					data[0] = 0;
 					msleep(10);
