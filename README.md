@@ -1,11 +1,56 @@
 # dabpi
 Raspberry Si4688 FM / DAB+ Receiver
 
+Original Project from Heiko Jehmlich, see https://github.com/teknoid/dabpi
+
 Original Project from Bjoern Biesenbach, see https://github.com/elmo2k3/dabpi_ctl
 
 New Boards can be ordered from Christoph Orth at https://ugreen.eu/product/ugreen-dab-board/
 
 ## News
+
+27.07.2025 - added DAB data service functionality
+
+-f starts all data services for a given serviceid
+
+-p starts dumping the service data into a fifo file dabdata in the current directory
+
+-r1 enables debug output when using -p
+
+```bash
+dsrvpcktint: 	0x1
+dsrvovflint: 	0x0
+buff_count: 	0x4
+srv_state: 	0x3 -> New Object
+data_src: 	0x0 -> standard data service and DATA_TYPE is DSCTy
+service_id: 	0xd210
+comp_id: 	0xc001
+dscty: 		0x5 -> TDC
+uatype: 	0x44a -> Journaline™
+byte_cnt: 	0x80
+seg_num: 	0x0
+num_segs: 	0x0
+
+DAB_GET_DIGITAL_SERVICE_DATA data:
+  0000  00 91 80 00 c0 01 04 03 05 10 d2 00 00 01 c0 00  ................
+  0010  00 4a 04 80 00 00 00 00 00 40 50 79 59 59 08 5d  .J.......@PyYY.]
+  0020  c9 cb 0d 02 21 10 00 50 95 2e f6 34 15 80 6e 62  ....!..P...4..nb
+  0030  a2 db 81 37 13 f7 6e 88 8c b0 e1 9b 61 90 76 2c  ...7..n.....a.v,
+  0040  55 ce 5e df db 4f 4f 71 70 cc a5 2e 4a f5 de a5  U.^..OOqp...J...
+  0050  c1 c6 f5 e5 82 4e e6 dd 92 f7 2d 70 a3 a1 aa 50  .....N....-p...P
+  0060  b6 a4 63 fc 64 1a af 9b 9c 2f f3 70 e9 38 86 dd  ..c.d..../.p.8..
+  0070  fd 2f 61 8b 70 4b 8c 94 90 27 f1 b5 48 a7 79 39  ./a.pK...'..H.y9
+  0080  9e e1 c1 cd 6c 19 ae e0 73 2c da b3 58 1d 46 4c  ....l...s,..X.FL
+  0090  60 b0 c2 aa 2d d6 1f b8 01                       `...-....
+```
+
+The dumped data is prefixed by "FF 0E FF 0E" and then contains the output of GET_DIGITAL_SERVICE_DATA starting with RESP5 BUFF_COUNT. See https://www.skyworksinc.com/-/media/Skyworks/SL/documents/public/application-notes/an649.pdf, page 175.
+```bash
+00000000  ff 0e ff 0e 04 03 05 10  d2 00 00 01 c0 00 00 4a  |...............J|
+00000010  04 a6 01 00 00 00 00 40  90 6e 61 59 08 75 51 4d  |.......@.naY.uQM|
+00000020  ae d3 30 10 2e af 17 e8  ba ab 39 c0 73 e2 b4 69  |..0.......9.s..i|
+00000030  9b 74 07 08 09 c4 cf 82  47 f5 d6 6e 32 49 4c 1c  |.t......G..n2IL.|
+```
 
 13.12.2016 - added FM functionality
 
