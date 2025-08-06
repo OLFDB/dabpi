@@ -800,8 +800,6 @@ void si46xx_evaluate_antcapsettings() {
 	struct dab_digrad_status_t status;
 	si46xx_dab_digrad_status(&status);
 
-
-
 	for (int i = 1; i < 128; i++) {
 		si46xx_dab_tune_freq(status.tuned_index, i);
 
