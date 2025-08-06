@@ -262,5 +262,8 @@ int si46xx_dab_get_digital_service_list(void);
 void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *data);
 void si46xx_dab_get_component_info(uint16_t compid);
 void si46xx_print_response(uint8_t *data);
+void si46xx_evaluate_varactorsettings(void);
+void si46xx_evaluate_antcapsettings(void);
+void si46xx_set_frontendconfig(void);
 #endif
 
