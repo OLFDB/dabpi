@@ -26,12 +26,42 @@
 #include <fcntl.h>
 
 uint32_t tunedservice;
-
 uint8_t dab_num_channels;
 
 extern uint8_t debug_enabled;
 
+int16_t varm;
+int16_t varb;
+uint8_t antcap;
+
 void si46xx_init_dab(void) {
+	varm = 0;
+	varb = 0;
+	antcap = 0; // AUTO
+
+	char data[20];
+
+	FILE *fp = fopen("varm.txt", "r");
+	if (fp) {
+		fgets(data, 20, fp);
+		varm = atoi(data);
+		fclose(fp);
+	}
+
+	fp = fopen("varb.txt", "r");
+	if (fp) {
+		fgets(data, 20, fp);
+		varb = atoi(data);
+		fclose(fp);
+	}
+
+	fp = fopen("antcap.txt", "r");
+	if (fp) {
+		fgets(data, 20, fp);
+		antcap = atoi(data);
+		fclose(fp);
+	}
+
 	si46xx_reset();
 	si46xx_powerup();
 	si46xx_hostload("firmware/rom00_patch.016.bin");
@@ -48,15 +78,13 @@ void si46xx_init_dab(void) {
 	si46xx_set_property(SI46XX_DAB_CTRL_DAB_ACF_ENABLE, 0x0000);
 //	si46xx_set_property(SI46XX_DIGITAL_SERVICE_INT_SOURCE, 1); // enable DSRVPAKTINT interrupt ??
 	si46xx_set_property(SI46XX_DAB_TUNE_FE_CFG, 0x0001); // front end switch closed
-	si46xx_set_property(SI46XX_DAB_TUNE_FE_VARM, 0x1710); // Front End Varactor configuration (Changed from '10' to 0x1710 to improve receiver sensitivity - Bjoern 27.11.14)
-	si46xx_set_property(SI46XX_DAB_TUNE_FE_VARB, 0x1711); // Front End Varactor configuration (Changed from '10' to 0x1711 to improve receiver sensitivity - Bjoern 27.11.14)
+	si46xx_set_property(SI46XX_DAB_TUNE_FE_VARM, varm); // Front End Varactor configuration
+	si46xx_set_property(SI46XX_DAB_TUNE_FE_VARB, varb); // Front End Varactor configuration
 	si46xx_set_property(SI46XX_PIN_CONFIG_ENABLE, 0x8002); // enable I2S output (BUG!!! either DAC or I2S seems to work)
-	//si46xx_set_property(0x800, 0x8003); // Analog and I2S, this only works with non-automotive devices
 	si46xx_set_property(0x0300, 0x3F); // Analog Volume max.
 	si46xx_set_property(0x0301, 0x00); // mute off
-	si46xx_set_property(0x0202, 0x1800);
-	//si46xx_set_property(0x0203, 0x0404); // FSLATE
 	si46xx_set_property(SI46XX_DIGITAL_IO_OUTPUT_SELECT, 0x8000); // I2S Master
+	si46xx_set_property(0xB400, 0xBFFF); // enable all data services
 }
 
 void si46xx_dab_digrad_status_print(struct dab_digrad_status_t *status) {
@@ -209,7 +237,7 @@ void si46xx_dab_set_freq_list(uint8_t num, uint32_t *freq_list) {
 	si46xx_reply("DAB_SET_FREQ_LIST");
 }
 
-void si46xx_dab_tune_freq(uint8_t index, uint8_t antcap) {
+void si46xx_dab_tune_freq(uint8_t index, uint8_t antcap1) {
 	uint8_t data[6];
 	uint8_t timeout = 255;
 
@@ -217,7 +245,7 @@ void si46xx_dab_tune_freq(uint8_t index, uint8_t antcap) {
 	data[1] = 0;
 	data[2] = index;
 	data[3] = 0;
-	data[4] = antcap;
+	data[4] = antcap1;
 	data[5] = 0;
 	spi(data, 6);
 
@@ -290,7 +318,8 @@ void si46xx_dab_scan() {
 	struct dab_digrad_status_t status;
 
 	for (i = 0; i < dab_num_channels; i++) {
-		si46xx_dab_tune_freq(i, 65);
+		si46xx_set_frontendconfig();
+		si46xx_dab_tune_freq(i, antcap);
 		si46xx_dab_digrad_status(&status);
 		printf("Channel %d: ACQ: %d RSSI: %d SNR: %d \r\n", i, status.acq, status.rssi, status.snr);
 		if (status.acq) {
@@ -470,7 +499,7 @@ void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *srvdata)
 				srvdata->seg_num = appdata[21] | appdata[22] << 8;
 				srvdata->num_segs = appdata[23] | appdata[24] << 8;
 
-				if (debug_enabled>0) {
+				if (debug_enabled > 0) {
 					printf("\ndsrvpcktint: \t0x%x\n", srvdata->dsrvpcktint);
 					printf("dsrvovflint: \t0x%x\n", srvdata->dsrvovlint);
 					printf("buff_count: \t0x%x\n", srvdata->buff_count);
@@ -494,7 +523,7 @@ void si46xx_dab_get_digital_service_data(struct dab_get_service_data_t *srvdata)
 					printf("seg_num: \t0x%x\n", srvdata->seg_num);
 					printf("num_segs: \t0x%x\n\n", srvdata->num_segs);
 
-					if (debug_enabled>1) {
+					if (debug_enabled > 1) {
 						hexDump("DAB_GET_DIGITAL_SERVICE_DATA data", appdata, srvdata->byte_cnt + 25);
 					}
 				}
@@ -702,3 +731,134 @@ void si46xx_dab_get_subchannel_info(uint32_t num) {
 	printf("timeout on DAB_GET_SUBCHAN_INFO\r\n");
 }
 
+void si46xx_evaluate_varactorsettings() {
+	// Iterate through different varactorsettings and check RSSI
+	int rssimax = 0;
+	int varmformaxrssi = 0;
+	int varbformaxrssi = 0;
+
+	struct dab_digrad_status_t status;
+	si46xx_dab_digrad_status(&status);
+
+	for (int varm = -32768; varm < 32767; varm += 1000) {
+		si46xx_set_property(SI46XX_DAB_TUNE_FE_VARM, varm);
+
+		for (int varb = 0; varb < 0xFFFF; varb += 1000) {
+			si46xx_set_property(SI46XX_DAB_TUNE_FE_VARB, varb);
+
+			si46xx_dab_tune_freq(status.tuned_index, antcap);
+
+			printf("VARM: %d\r\n", varm);
+			printf("VARB: %d\r\n", varb);
+			struct dab_digrad_status_t status;
+			si46xx_dab_digrad_status(&status);
+			printf("RSSI: %d\r\n", status.rssi);
+			printf("RSSIh: %d\r\n", status.rssi_h_int);
+			printf("RSSIl: %d\r\n", status.rssi_l_int);
+
+			if (status.rssi > rssimax) {
+				rssimax = status.rssi;
+				varmformaxrssi = varm;
+				varbformaxrssi = varb;
+			}
+
+		}
+	}
+
+	printf("max RSSI: %d\r\n", rssimax);
+	printf("VARM for max RSSI: %d\r\n", varmformaxrssi);
+	printf("VARB for max RSSI: %d\r\n", varbformaxrssi);
+
+	FILE *f = fopen("varm.txt", "w");
+
+	if (f) {
+		fprintf(f, "%d\r\n", varmformaxrssi);
+		printf("VARM: %d\r\n", varmformaxrssi);
+		fclose(f);
+	}
+
+	f = fopen("varb.txt", "w");
+
+	if (f) {
+		fprintf(f, "%d\r\n", varbformaxrssi);
+		printf("VARB: %d\r\n", varbformaxrssi);
+		fclose(f);
+	}
+
+}
+
+/*
+ * Evaluates the antcap setting for the connected board.
+ * Use the output of -k<x> to find the frequency index with the lowest RSSI
+ * and tune this frequeny index using -i<x> before using -v
+ */
+void si46xx_evaluate_antcapsettings() {
+
+	int antcap = 0;
+	int maxrssi = 0;
+
+	struct dab_digrad_status_t status;
+	si46xx_dab_digrad_status(&status);
+
+
+
+	for (int i = 1; i < 128; i++) {
+		si46xx_dab_tune_freq(status.tuned_index, i);
+
+		struct dab_digrad_status_t status;
+		si46xx_dab_digrad_status(&status);
+
+		if (maxrssi < status.rssi) {
+			maxrssi = status.rssi;
+			antcap = i;
+		}
+
+		printf("ANTCAP: %d\r\n", i);
+		printf("RSSI: %d\r\n", status.rssi);
+		printf("RSSIh: %d\r\n", status.rssi_h_int);
+		printf("RSSIl: %d\r\n", status.rssi_l_int);
+	}
+
+	FILE *f = fopen("antcap.txt", "w");
+
+	if (f) {
+		fprintf(f, "%d\r\n", antcap);
+		printf("ANTCAP: %d\r\n", antcap);
+		printf("MAXRSSI: %d\r\n", maxrssi);
+		fclose(f);
+	}
+}
+
+void si46xx_set_frontendconfig() {
+	varm = 0;
+	varb = 0;
+	antcap = 0; // AUTO
+
+	char data[20];
+	FILE *fp = fopen("varm.txt", "r");
+
+	if (fp) {
+		fgets(data, 20, fp);
+		varm = atoi(data);
+		fclose(fp);
+	}
+
+	fp = fopen("varb.txt", "r");
+
+	if (fp) {
+		fgets(data, 20, fp);
+		varb = atoi(data);
+		fclose(fp);
+	}
+
+	fp = fopen("antcap.txt", "r");
+	if (fp) {
+		fgets(data, 20, fp);
+		antcap = atoi(data);
+		fclose(fp);
+	}
+
+	si46xx_set_property(SI46XX_DAB_TUNE_FE_VARM, varm);
+	si46xx_set_property(SI46XX_DAB_TUNE_FE_VARB, varb);
+
+}
